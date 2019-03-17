@@ -1828,8 +1828,10 @@ void TFT_eSprite::drawGlyph(uint16_t code)
     }
   }
 
+  getIndividualMetrics(code);  
   uint16_t gNum = 0;
-  bool found = this->getUnicodeIndex(code, &gNum);
+  //bool found = getUnicodeIndex(code, &gNum);
+  bool found = gHeight[gNum];
   
   uint16_t fg = this->textcolor;
   uint16_t bg = this->textbgcolor;
@@ -1941,7 +1943,10 @@ void TFT_eSprite::printToSprite(char *cbuffer, uint16_t len) //String string)
     while (n < len)
     {
       uint16_t unicode = decodeUTF8((uint8_t*)cbuffer, &n, len - n);
-      if (this->getUnicodeIndex(unicode, &index))
+      
+      getIndividualMetrics(unicode);  
+      //if (this->getUnicodeIndex(unicode, &index))
+      if (gHeight[index])
       {
         if (n == 0) sWidth -= this->gdX[index];
         if (n == len-1) sWidth += ( this->gWidth[index] + this->gdX[index]);
@@ -1981,6 +1986,7 @@ void TFT_eSprite::printToSprite(char *cbuffer, uint16_t len) //String string)
 *************************************************************************************x*/
 int16_t TFT_eSprite::printToSprite(int16_t x, int16_t y, uint16_t index)
 {
+  return 0; // disable (no use)
   bool newSprite = !_created;
   int16_t sWidth = this->gWidth[index];
 

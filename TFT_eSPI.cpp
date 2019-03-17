@@ -2307,8 +2307,10 @@ int16_t TFT_eSPI::textWidth(const char *string, uint8_t font)
         if (uniCode == 0x20) str_width += gFont.spaceWidth;
         else
         {
+          getIndividualMetrics(uniCode);  
           uint16_t gNum = 0;
-          bool found = getUnicodeIndex(uniCode, &gNum);
+          //bool found = getUnicodeIndex(uniCode, &gNum);
+          bool found = gHeight[gNum];
           if (found)
           {
             if(str_width == 0 && gdX[gNum] < 0) str_width -= gdX[gNum];

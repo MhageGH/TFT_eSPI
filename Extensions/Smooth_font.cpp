@@ -122,6 +122,8 @@ void TFT_eSPI::loadMetrics(uint16_t gCount)
   uint32_t headerPtr = 24;
   uint32_t bitmapPtr = 24 + gCount * 28;
 
+  int N = gCount;
+  gCount = 1;
   gUnicode  = (uint16_t*)malloc( gCount * 2); // Unicode 16 bit Basic Multilingual Plane (0-FFFF)
   gHeight   =  (uint8_t*)malloc( gCount );    // Height of glyph
   gWidth    =  (uint8_t*)malloc( gCount );    // Width of glyph
@@ -137,7 +139,10 @@ void TFT_eSPI::loadMetrics(uint16_t gCount)
 
   uint16_t gNum = 0;
   fontFile.seek(headerPtr, fs::SeekSet);
-  while (gNum < gCount)
+  metricsFile = SD.open("/metrics.dat", FILE_WRITE);
+  for (int i = 0; i < 10 * 0xFFFF; ++i) metricsFile.write(0);
+  //while (gNum < gCount)
+  for (int i = 0; i < N; ++i)
   {
     gUnicode[gNum]  = (uint16_t)readInt32(); // Unicode code point value
     gHeight[gNum]   =  (uint8_t)readInt32(); // Height of glyph
@@ -188,13 +193,41 @@ void TFT_eSPI::loadMetrics(uint16_t gCount)
 
     bitmapPtr += gWidth[gNum] * gHeight[gNum];
 
-    gNum++;
+    //gNum++;
     yield();
+    setIndivisualMetrics(gUnicode[gNum]);
   }
-
+  metricsFile.close();
+  metricsFile = SD.open("/metrics.dat", FILE_READ);
   gFont.yAdvance = gFont.maxAscent + gFont.maxDescent;
 
   gFont.spaceWidth = (gFont.ascent + gFont.descent) * 2/7;  // Guess at space width
+}
+
+void TFT_eSPI::setIndivisualMetrics(uint16_t unicode) {
+	metricsFile.seek(10 * unicode);
+	metricsFile.write(gHeight[0]);
+	metricsFile.write(gWidth[0]);
+	metricsFile.write(gxAdvance[0]);
+	metricsFile.write((uint8_t)(0xFF & (gdY[0] >> 8)));
+	metricsFile.write((uint8_t)(0xFF & (gdY[0] >> 0)));
+	metricsFile.write(gdX[0]);
+	metricsFile.write((uint8_t)(0xFF & (gBitmap[0] >> 24)));
+	metricsFile.write((uint8_t)(0xFF & (gBitmap[0] >> 16)));
+	metricsFile.write((uint8_t)(0xFF & (gBitmap[0] >> 8)));
+	metricsFile.write((uint8_t)(0xFF & (gBitmap[0] >> 0)));
+}
+
+void TFT_eSPI::getIndividualMetrics(uint16_t unicode) {
+	metricsFile.seek(10 * unicode);
+	uint8_t buf[10];
+	metricsFile.read(buf, 10);
+	gHeight[0] = buf[0];
+	gWidth[0] = buf[1];
+	gxAdvance[0] = buf[2];
+	gdY[0] = (buf[3] << 8) | buf[4];
+	gdX[0] = buf[5];
+	gBitmap[0] = (buf[6] << 24) | (buf[7] << 16) | (buf[8] << 8) | (buf[9] << 0);
 }
 
 
@@ -248,6 +281,7 @@ void TFT_eSPI::unloadFont( void )
 
   if(fontFile) fontFile.close();
   fontLoaded = false;
+ 	if (metricsFile) metricsFile.close();
 }
 
 
@@ -393,6 +427,7 @@ uint32_t TFT_eSPI::readInt32(void)
 *************************************************************************************x*/
 bool TFT_eSPI::getUnicodeIndex(uint16_t unicode, uint16_t *index)
 {
+  return false; // disable
   for (uint16_t i = 0; i < gFont.gCount; i++)
   {
     if (gUnicode[i] == unicode)
@@ -427,9 +462,11 @@ void TFT_eSPI::drawGlyph(uint16_t code)
     }
   }
 
+  getIndividualMetrics(code);  
   uint16_t gNum = 0;
-  bool found = getUnicodeIndex(code, &gNum);
-  
+  //bool found = getUnicodeIndex(code, &gNum);
+  bool found = gHeight[gNum];
+
   uint16_t fg = textcolor;
   uint16_t bg = textbgcolor;
 
@@ -507,6 +544,7 @@ void TFT_eSPI::drawGlyph(uint16_t code)
 *************************************************************************************x*/
 void TFT_eSPI::showFont(uint32_t td)
 {
+  return; // disable (only use for demo)
   if(!fontLoaded) return;
 
   if(!fontFile)

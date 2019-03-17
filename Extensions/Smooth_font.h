@@ -40,8 +40,11 @@ fontMetrics gFont = { 0, 0, 0, 0, 0, 0, 0 };
   uint32_t* gBitmap = NULL;   //file pointer to greyscale bitmap
 
   bool     fontLoaded = false; // Flags when a anti-aliased font is loaded
+  void getIndividualMetrics(uint16_t unicode);
 
  private:
-
+  fs::File metricsFile;
+  void setIndivisualMetrics(uint16_t unicode);
+  
   void     loadMetrics(uint16_t gCount);
   uint32_t readInt32(void);
