@@ -77,12 +77,14 @@ void TFT_eSPI::loadFont(String fontName)
    unloadFont();
     
   // Avoid a crash on the ESP32 if the file does not exist
-  if (SPIFFS.exists("/" + fontName + ".vlw") == false) {
+  //if (SPIFFS.exists("/" + fontName + ".vlw") == false) {
+  if (SD.exists("/" + fontName + ".vlw") == false) {
     Serial.println("Font file " + fontName + " not found!");
     return;
   }
 
-  fontFile = SPIFFS.open( "/" + fontName + ".vlw", "r");
+  //fontFile = SPIFFS.open( "/" + fontName + ".vlw", "r");
+  fontFile = SD.open( "/" + fontName + ".vlw", "r");
 
   if(!fontFile) return;
 
@@ -452,11 +454,12 @@ void TFT_eSPI::drawGlyph(uint16_t code)
     int16_t cy = cursor_y + gFont.maxAscent - gdY[gNum];
     int16_t cx = cursor_x + gdX[gNum];
 
-    startWrite(); // Avoid slow ESP32 transaction overhead for every pixel
+    //startWrite(); // Avoid slow ESP32 transaction overhead for every pixel
 
     for (int y = 0; y < gHeight[gNum]; y++)
     {
       fontFile.read(pbuffer, gWidth[gNum]); //<//
+      startWrite(); // Avoid slow ESP32 transaction overhead for every pixel
       for (int x = 0; x < gWidth[gNum]; x++)
       {
         uint8_t pixel = pbuffer[x]; //<//
@@ -483,6 +486,7 @@ void TFT_eSPI::drawGlyph(uint16_t code)
         }
       }
       if (dl) { drawFastHLine( xs, y + cy, dl, fg); dl = 0; }
+      endWrite();
     }
 
     cursor_x += gxAdvance[gNum];
@@ -494,7 +498,7 @@ void TFT_eSPI::drawGlyph(uint16_t code)
     cursor_x += gFont.spaceWidth + 1;
   }
 
-  endWrite();
+  //endWrite();
 }
 
 /***************************************************************************************

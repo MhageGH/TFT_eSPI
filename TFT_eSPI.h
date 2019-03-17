@@ -120,7 +120,8 @@
   #include <FS.h>
 
   #ifdef ESP32
-    #include "SPIFFS.h"
+    //#include "SPIFFS.h"
+    #include "SD.h"
   #endif
 #endif
 
