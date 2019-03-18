@@ -77,14 +77,12 @@ void TFT_eSPI::loadFont(String fontName)
    unloadFont();
     
   // Avoid a crash on the ESP32 if the file does not exist
-  //if (SPIFFS.exists("/" + fontName + ".vlw") == false) {
-  if (SD.exists("/" + fontName + ".vlw") == false) {
+  if ((_pFS ? *_pFS : SPIFFS).exists("/" + fontName + ".vlw") == false) {
     Serial.println("Font file " + fontName + " not found!");
     return;
   }
 
-  //fontFile = SPIFFS.open( "/" + fontName + ".vlw", "r");
-  fontFile = SD.open( "/" + fontName + ".vlw", "r");
+  fontFile = (_pFS ? *_pFS : SPIFFS).open( "/" + fontName + ".vlw", "r");
 
   if(!fontFile) return;
 
@@ -123,7 +121,7 @@ void TFT_eSPI::loadMetrics(uint16_t gCount)
   uint32_t bitmapPtr = 24 + gCount * 28;
 
   int N = gCount;
-  gCount = 1;
+  if (_pFS) gCount = 1;
   gUnicode  = (uint16_t*)malloc( gCount * 2); // Unicode 16 bit Basic Multilingual Plane (0-FFFF)
   gHeight   =  (uint8_t*)malloc( gCount );    // Height of glyph
   gWidth    =  (uint8_t*)malloc( gCount );    // Width of glyph
@@ -139,8 +137,10 @@ void TFT_eSPI::loadMetrics(uint16_t gCount)
 
   uint16_t gNum = 0;
   fontFile.seek(headerPtr, fs::SeekSet);
-  metricsFile = SD.open("/metrics.dat", FILE_WRITE);
-  for (int i = 0; i < 10 * 0xFFFF; ++i) metricsFile.write(0);
+  if (_pFS) {
+    metricsFile = (*_pFS).open("/metrics.dat", FILE_WRITE);
+    for (int i = 0; i < 10 * 0xFFFF; ++i) metricsFile.write(0);
+  }
   //while (gNum < gCount)
   for (int i = 0; i < N; ++i)
   {
@@ -193,12 +193,14 @@ void TFT_eSPI::loadMetrics(uint16_t gCount)
 
     bitmapPtr += gWidth[gNum] * gHeight[gNum];
 
-    //gNum++;
+    if (!_pFS) gNum++;
     yield();
-    setIndivisualMetrics(gUnicode[gNum]);
+    if (_pFS) setIndivisualMetrics(gUnicode[gNum]);
   }
-  metricsFile.close();
-  metricsFile = SD.open("/metrics.dat", FILE_READ);
+  if (_pFS) {
+    metricsFile.close();
+    metricsFile = (*_pFS).open("/metrics.dat", FILE_READ);
+  }
   gFont.yAdvance = gFont.maxAscent + gFont.maxDescent;
 
   gFont.spaceWidth = (gFont.ascent + gFont.descent) * 2/7;  // Guess at space width
@@ -281,7 +283,7 @@ void TFT_eSPI::unloadFont( void )
 
   if(fontFile) fontFile.close();
   fontLoaded = false;
- 	if (metricsFile) metricsFile.close();
+ 	if (_pFS) metricsFile.close();
 }
 
 
@@ -427,7 +429,7 @@ uint32_t TFT_eSPI::readInt32(void)
 *************************************************************************************x*/
 bool TFT_eSPI::getUnicodeIndex(uint16_t unicode, uint16_t *index)
 {
-  return false; // disable
+  if (_pFS) return false; // disable when using _pFS
   for (uint16_t i = 0; i < gFont.gCount; i++)
   {
     if (gUnicode[i] == unicode)
@@ -462,10 +464,9 @@ void TFT_eSPI::drawGlyph(uint16_t code)
     }
   }
 
-  getIndividualMetrics(code);  
+  if (_pFS) getIndividualMetrics(code);  
   uint16_t gNum = 0;
-  //bool found = getUnicodeIndex(code, &gNum);
-  bool found = gHeight[gNum];
+  bool found = _pFS ? gHeight[gNum] : getUnicodeIndex(code, &gNum);
 
   uint16_t fg = textcolor;
   uint16_t bg = textbgcolor;
@@ -544,7 +545,7 @@ void TFT_eSPI::drawGlyph(uint16_t code)
 *************************************************************************************x*/
 void TFT_eSPI::showFont(uint32_t td)
 {
-  return; // disable (only use for demo)
+  if (_pFS) return; // disable when using _pFS
   if(!fontLoaded) return;
 
   if(!fontFile)

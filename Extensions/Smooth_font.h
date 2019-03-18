@@ -41,6 +41,8 @@ fontMetrics gFont = { 0, 0, 0, 0, 0, 0, 0 };
 
   bool     fontLoaded = false; // Flags when a anti-aliased font is loaded
   void getIndividualMetrics(uint16_t unicode);
+  void setFS(fs::FS& fs) { _pFS = &fs; }
+  fs::FS* _pFS = NULL;
 
  private:
   fs::File metricsFile;
