@@ -75,6 +75,7 @@ void TFT_eSPI::loadFont(String fontName)
   */
 
    unloadFont();
+   this->fontName = fontName;
     
   // Avoid a crash on the ESP32 if the file does not exist
   if ((_pFS ? *_pFS : SPIFFS).exists("/" + fontName + ".vlw") == false) {
@@ -104,11 +105,26 @@ void TFT_eSPI::loadFont(String fontName)
   fontLoaded = true;
 
   // Fetch the metrics for each glyph
-  loadMetrics(gFont.gCount);
+  if (_pFS && (*_pFS).exists("/" + fontName + ".dat")) {
+    mallocMetrics(1);
+    metricsFile = (*_pFS).open("/" + fontName + ".dat", FILE_READ);
+    getgFont();
+  }
+  else loadMetrics(gFont.gCount);
 
   //fontFile.close();
 }
 
+void TFT_eSPI::mallocMetrics(uint16_t gCount)
+{
+  gUnicode  = (uint16_t*)malloc( gCount * 2); // Unicode 16 bit Basic Multilingual Plane (0-FFFF)
+  gHeight   =  (uint8_t*)malloc( gCount );    // Height of glyph
+  gWidth    =  (uint8_t*)malloc( gCount );    // Width of glyph
+  gxAdvance =  (uint8_t*)malloc( gCount );    // xAdvance - to move x cursor
+  gdY       =  (int16_t*)malloc( gCount * 2); // offset from bitmap top edge from lowest point in any character
+  gdX       =   (int8_t*)malloc( gCount );    // offset for bitmap left edge relative to cursor X
+  gBitmap   = (uint32_t*)malloc( gCount * 4); // seek pointer to glyph bitmap in SPIFFS file
+}
 
 /***************************************************************************************
 ** Function name:           loadMetrics
@@ -122,13 +138,7 @@ void TFT_eSPI::loadMetrics(uint16_t gCount)
 
   int N = gCount;
   if (_pFS) gCount = 1;
-  gUnicode  = (uint16_t*)malloc( gCount * 2); // Unicode 16 bit Basic Multilingual Plane (0-FFFF)
-  gHeight   =  (uint8_t*)malloc( gCount );    // Height of glyph
-  gWidth    =  (uint8_t*)malloc( gCount );    // Width of glyph
-  gxAdvance =  (uint8_t*)malloc( gCount );    // xAdvance - to move x cursor
-  gdY       =  (int16_t*)malloc( gCount * 2); // offset from bitmap top edge from lowest point in any character
-  gdX       =   (int8_t*)malloc( gCount );    // offset for bitmap left edge relative to cursor X
-  gBitmap   = (uint32_t*)malloc( gCount * 4); // seek pointer to glyph bitmap in SPIFFS file
+  mallocMetrics(gCount);
 
 #ifdef SHOW_ASCENT_DESCENT
   Serial.print("ascent  = "); Serial.println(gFont.ascent);
@@ -138,8 +148,9 @@ void TFT_eSPI::loadMetrics(uint16_t gCount)
   uint16_t gNum = 0;
   fontFile.seek(headerPtr, fs::SeekSet);
   if (_pFS) {
-    metricsFile = (*_pFS).open("/metrics.dat", FILE_WRITE);
-    for (int i = 0; i < 10 * 0xFFFF; ++i) metricsFile.write(0);
+    metricsFile = (*_pFS).open("/" + fontName + ".dat", FILE_WRITE);
+    for (int i = 0; i < 10 * 0x10000; ++i) metricsFile.write(0);
+    for (int i = 0; i < 9; ++i) metricsFile.write(0); // for gFont.maxAscent, gFont.maxDescent, gFont.yAdvance, gFont.spaceWidth
   }
   //while (gNum < gCount)
   for (int i = 0; i < N; ++i)
@@ -197,27 +208,55 @@ void TFT_eSPI::loadMetrics(uint16_t gCount)
     yield();
     if (_pFS) setIndivisualMetrics(gUnicode[gNum]);
   }
-  if (_pFS) {
-    metricsFile.close();
-    metricsFile = (*_pFS).open("/metrics.dat", FILE_READ);
-  }
   gFont.yAdvance = gFont.maxAscent + gFont.maxDescent;
 
   gFont.spaceWidth = (gFont.ascent + gFont.descent) * 2/7;  // Guess at space width
+
+  if (_pFS) {
+    setgFont();
+    metricsFile.close();
+    metricsFile = (*_pFS).open("/" + fontName + ".dat", FILE_READ);
+  }
+}
+
+void TFT_eSPI::setgFont() {
+    uint8_t buf[8];
+    buf[0] = (uint8_t)(0xFF & (gFont.maxAscent >> 8));
+    buf[1] = (uint8_t)(0xFF & (gFont.maxAscent >> 0));
+    buf[2] = (uint8_t)(0xFF & (gFont.maxDescent >> 8));
+    buf[3] = (uint8_t)(0xFF & (gFont.maxDescent >> 0));
+    buf[4] = (uint8_t)(0xFF & (gFont.yAdvance >> 8));
+    buf[5] = (uint8_t)(0xFF & (gFont.yAdvance >> 0));
+    buf[6] = (uint8_t)(0xFF & (gFont.spaceWidth >> 8));
+    buf[7] = (uint8_t)(0xFF & (gFont.spaceWidth >> 0));
+    metricsFile.seek(10 * 0x10000);
+    metricsFile.write(buf, sizeof(buf));
+}
+
+void TFT_eSPI::getgFont() {
+  	metricsFile.seek(10 * 0x10000);
+    uint8_t buf[8];
+    metricsFile.read(buf, 8);
+    gFont.maxAscent = (buf[0] << 8) | buf[1];
+    gFont.maxDescent = (buf[2] << 8) | buf[3];
+    gFont.yAdvance = (buf[4] << 8) | buf[5];
+    gFont.spaceWidth = (buf[6] << 8) | buf[7];
 }
 
 void TFT_eSPI::setIndivisualMetrics(uint16_t unicode) {
-	metricsFile.seek(10 * unicode);
-	metricsFile.write(gHeight[0]);
-	metricsFile.write(gWidth[0]);
-	metricsFile.write(gxAdvance[0]);
-	metricsFile.write((uint8_t)(0xFF & (gdY[0] >> 8)));
-	metricsFile.write((uint8_t)(0xFF & (gdY[0] >> 0)));
-	metricsFile.write(gdX[0]);
-	metricsFile.write((uint8_t)(0xFF & (gBitmap[0] >> 24)));
-	metricsFile.write((uint8_t)(0xFF & (gBitmap[0] >> 16)));
-	metricsFile.write((uint8_t)(0xFF & (gBitmap[0] >> 8)));
-	metricsFile.write((uint8_t)(0xFF & (gBitmap[0] >> 0)));
+  uint8_t buf[10];
+  buf[0] = gHeight[0];
+  buf[1] = gWidth[0];
+  buf[2] = gxAdvance[0];
+  buf[3] = (uint8_t)(0xFF & (gdY[0] >> 8));
+  buf[4] = (uint8_t)(0xFF & (gdY[0] >> 0));
+  buf[5] = gdX[0];
+  buf[6] = (uint8_t)(0xFF & (gBitmap[0] >> 24));
+  buf[7] = (uint8_t)(0xFF & (gBitmap[0] >> 16));
+  buf[8] = (uint8_t)(0xFF & (gBitmap[0] >> 8));
+  buf[9] = (uint8_t)(0xFF & (gBitmap[0] >> 0));
+ 	metricsFile.seek(10 * unicode);
+	metricsFile.write(buf, sizeof(buf));
 }
 
 void TFT_eSPI::getIndividualMetrics(uint16_t unicode) {

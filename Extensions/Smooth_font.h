@@ -46,7 +46,11 @@ fontMetrics gFont = { 0, 0, 0, 0, 0, 0, 0 };
 
  private:
   fs::File metricsFile;
+  String fontName;
+  void mallocMetrics(uint16_t gCount);
   void setIndivisualMetrics(uint16_t unicode);
+  void setgFont();
+  void getgFont();
   
   void     loadMetrics(uint16_t gCount);
   uint32_t readInt32(void);
